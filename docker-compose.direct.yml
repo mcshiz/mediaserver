@@ -5,14 +5,9 @@ services:
     ports:
       - "32400:32400/tcp"
 
-  jellyfin:
+  sabnzbd:
     ports:
-      - "8096:8096/tcp"
-      - "7359:7359/udp"
-
-  nzbget:
-    ports:
-      - "6789:6789/tcp"
+      - "8080:8080/tcp"
 
   sonarr:
     ports:
@@ -21,22 +16,14 @@ services:
   radarr:
     ports:
       - "7878:7878/tcp"
+  
+  readarr:
+    ports:
+      - "8787:8787/tcp"
 
   nzbhydra:
     ports:
       - "5076:5076/tcp"
-
-  ombi:
-    ports:
-      - "3579:3579/tcp"
-
-  duplicati:
-    ports:
-      - "8200:8200/tcp"
-
-  netdata:
-    ports:
-      - "19999:19999/tcp"
 
   overseerr:
     ports:
@@ -46,9 +33,7 @@ services:
     ports:
       - "9696:9696/tcp"
 
-  syncthing:
+  calibre:
     ports:
-      - "8384:8384/tcp"
-      - "22000:22000/tcp"
-      - "22000:22000/udp"
-      - "21027:21027/udp"
+      - "8181:8181/tcp"
+

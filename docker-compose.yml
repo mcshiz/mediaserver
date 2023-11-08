@@ -1,43 +1,39 @@
 version: "3.7"
 networks:
   default:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1
 services:
   # https://docs.linuxserver.io/images/docker-plex
   plex:
     image: linuxserver/plex:1.32.7@sha256:56d4304302cb2bb87a5ebe7b8c3d2f4caf47dcb1ddb8ac3613920d89440961df
     restart: unless-stopped
+    container_name: plex
     environment:
       PUID: "${PUID}"
       PGID: "${PGID}"
       TZ: "${TZ}"
       PLEX_CLAIM: "${PLEX_CLAIM}"
     networks:
-      - default
+      default:
+        ipv4_address: "172.18.0.4"
     volumes:
       - "${CONFIG_DIR}/plex:/config"
       - "${MEDIA_DIR}:/media"
     tmpfs:
       - "/tmp"
+    
 
-  # https://docs.linuxserver.io/images/docker-jellyfin
-  jellyfin:
-    image: linuxserver/jellyfin:10.8.12@sha256:905d96568d5e1de4e4573a63c257f76a683e682502e19bc5e8bf15334de609a9
-    restart: unless-stopped
-    environment:
-      PUID: "${PUID}"
-      PGID: "${PGID}"
-      TZ: "${TZ}"
-      JELLYFIN_PublishedServerUrl: "${JELLYFIN_HOST}"
-    networks:
-      - default
-    volumes:
-      - "${CONFIG_DIR}/jellyfin:/config"
-      - "${MEDIA_DIR}:/media"
 
   # https://hub.docker.com/r/linuxserver/prowlarr
   prowlarr:
     image: linuxserver/prowlarr:1.10.1-develop@sha256:1b36dbcc95eefba1dbd66000c551e7207c786c9f7040a676a5c386ab5db082bb
     restart: unless-stopped
+    container_name: prowlarr    
     environment:
       PUID: "${PUID}"
       PGID: "${PGID}"
@@ -47,24 +43,27 @@ services:
     volumes:
       - "${CONFIG_DIR}/prowlarr:/config"
 
-  # https://docs.linuxserver.io/images/docker-nzbget
-  nzbget:
-    image: linuxserver/nzbget:21.1.20230119@sha256:ed58a6471591126adee01e704d35264979640bede1fca7ffa13a21d6643c5a18
-    restart: unless-stopped
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    restart: unless-stopped  
     environment:
       PUID: "${PUID}"
       PGID: "${PGID}"
       TZ: "${TZ}"
     networks:
-      - default
+      default:
+        ipv4_address: 172.18.0.9
     volumes:
-      - "${CONFIG_DIR}/nzbget:/config"
+      - "${CONFIG_DIR}/sabnzbd:/config"
       - "${DOWNLOADS_DIR}:/downloads"
+
 
   # https://docs.linuxserver.io/images/docker-sonarr
   sonarr:
     image: linuxserver/sonarr:3.0.10@sha256:dbd380e7dbd9eb79cc488bd42d93336b47a2d3c3b6dec56bdb1c314ee614f536
     restart: unless-stopped
+    container_name: sonarr
     environment:
       PUID: "${PUID}"
       PGID: "${PGID}"
@@ -77,12 +76,13 @@ services:
       - "${MEDIA_DIR}:/media"
     links:
       - nzbhydra
-      - nzbget
+      - sabnzbd
 
   # https://docs.linuxserver.io/images/docker-radarr
   radarr:
     image: linuxserver/radarr:5.0.3@sha256:9d963b1a7cf228904a0d17ad99e5fe2aeb91c17432dbe166ba1950664e3a9f86
     restart: unless-stopped
+    container_name: radarr
     environment:
       PUID: "${PUID}"
       PGID: "${PGID}"
@@ -95,8 +95,26 @@ services:
       - "${MEDIA_DIR}:/media"
     links:
       - nzbhydra
-      - nzbget
-
+      - sabnzbd
+  
+  readarr:
+    image: lscr.io/linuxserver/readarr:develop
+    restart: unless-stopped
+    container_name: readarr
+    environment:
+      PUID: "${PUID}"
+      PGID: "${PGID}"
+      TZ: "${TZ}"
+    volumes:
+      - "${CONFIG_DIR}/readarr:/config"
+      - "${DOWNLOADS_DIR}:/downloads"
+      - "${MEDIA_DIR}:/media"
+    networks:
+      - default
+    links:
+      - nzbhydra
+      - sabnzbd    
+  
   # https://docs.linuxserver.io/images/docker-nzbhydra
   nzbhydra:
     image: linuxserver/nzbhydra2:4.7.6@sha256:ded588be5b2b0f405a7f34ba7279653e8fe288d0eea75b6d7de726cc765e7733
@@ -111,65 +129,12 @@ services:
       - "${CONFIG_DIR}/nzbhydra:/config"
       - "${DOWNLOADS_DIR}:/downloads"
 
-  # https://docs.linuxserver.io/images/docker-ombi
-  ombi:
-    image: linuxserver/ombi:4.43.5@sha256:487164e49ef5673c1c869b14f82fbde1dfb5f76f04699d547f9b4e901b9bfab8
-    restart: unless-stopped
-    environment:
-      PUID: ${PUID}
-      PGID: ${PGID}
-      TZ: ${TZ}
-    volumes:
-      - ${CONFIG_DIR}/ombi:/config
-    networks:
-      - default
-    links:
-      - sonarr
-      - radarr
-      - plex
-
-  # https://docs.linuxserver.io/images/docker-duplicati
-  duplicati:
-    image: lscr.io/linuxserver/duplicati:v2.0.6.3-2.0.6.3_beta_2021-06-17-ls160@sha256:9cf7c7a14bf1474d44aa29d329552bf32af58090f4cfa5e61e35a88b2cd4677e
-    restart: unless-stopped
-    environment:
-      PUID: ${PUID}
-      PGID: ${PGID}
-      TZ: ${TZ}
-    volumes:
-      - ${CONFIG_DIR}/duplicati:/config:rw
-      - ./:/source:rw
-    networks:
-      - default
-    tmpfs:
-      - /tmp
-
-  # https://hub.docker.com/r/netdata/netdata
-  netdata:
-    image: netdata/netdata:v1.43.2@sha256:0116a5a4dbfedd84d80eba320f5d99d547da5d9bc0841adde0d7f13bed25f73a
-    restart: unless-stopped
-    hostname: ${NETDATA_HOST}
-    environment:
-      PGID: ${DOCKER_PGID}
-      TZ: ${TZ}
-    cap_add:
-      - SYS_PTRACE
-    security_opt:
-      - apparmor:unconfined
-    volumes:
-      - /etc/passwd:/host/etc/passwd:ro
-      - /etc/group:/host/etc/group:ro
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - default
-
   # https://docs.overseerr.dev/getting-started/installation
   # https://hub.docker.com/r/linuxserver/overseerr
   overseerr:
     image: lscr.io/linuxserver/overseerr:1.33.2@sha256:1a7a05fea6e87a89d073166066108d8070aebf21c4a554ab37142e139a5cbc94
     restart: unless-stopped
+    container_name: overseerr
     environment:
       PUID: ${PUID}
       PGID: ${PGID}
@@ -183,41 +148,21 @@ services:
     networks:
       - default
 
-  # https://hub.docker.com/r/tailscale/tailscale
-  tailscale:
-    image: tailscale/tailscale:v1.52.0@sha256:b102f468a2f1b0b6e9717cf728c43886c136e808010547eebe9ebd80aedd34c3
-    restart: unless-stopped
+  calibre:
+    image: lscr.io/linuxserver/calibre:latest
+    container_name: calibre
+    restart: unless-stopped      
     environment:
-      TS_AUTH_KEY: ${TS_AUTH_KEY}
-      TS_STATE_DIR: "/var/lib/tailscale"
-      TS_SOCKET: "/var/run/tailscale/tailscaled.sock"
-      TS_EXTRA_ARGS: "--reset"
-    network_mode: host
-    volumes:
-      - ${CONFIG_DIR}/tailscale:/var/lib/tailscale
-    devices:
-      - /dev/net/tun
-    cap_add:
-      - net_admin
-      - net_raw
-    tmpfs:
-      - /tmp
-      - /var/run/
-
-  # https://docs.linuxserver.io/images/docker-syncthing
-  syncthing:
-    image: lscr.io/linuxserver/syncthing:1.25.0@sha256:e76d3d3abfce2f7ef788a6c2af28d4fecfabb8d191ace6a4ad7e1496d1b9a5ea
-    restart: unless-stopped
-    environment:
-      PUID: ${PUID}
-      PGID: ${PGID}
+      PUID: "${PUID}"
+      PGID: "${PGID}"
       TZ: ${TZ}
     volumes:
-      - "${CONFIG_DIR}/syncthing:/config"
-      - "${CONFIG_DIR}:/data/config"
-      - "${DOWNLOADS_DIR}:/data/downloads"
-      - "${MEDIA_DIR}:/data/media"
-    tmpfs:
-      - /tmp
+      - ${CONFIG_DIR}/calibre:/config
+      - "${DOWNLOADS_DIR}:/downloads"
+      - "${MEDIA_DIR}:/media"      
     networks:
-      - default
+      - default      
+
+
+
+
